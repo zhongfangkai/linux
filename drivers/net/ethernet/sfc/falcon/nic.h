@@ -1,11 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /****************************************************************************
  * Driver for Solarflare network controllers and boards
  * Copyright 2005-2006 Fen Systems Ltd.
  * Copyright 2006-2013 Solarflare Communications Inc.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published
- * by the Free Software Foundation, incorporated herein by reference.
  */
 
 #ifndef EF4_NIC_H
@@ -300,7 +297,7 @@ static inline struct falcon_board *falcon_board(struct ef4_nic *efx)
 	return &data->board;
 }
 
-struct ethtool_ts_info;
+struct kernel_ethtool_ts_info;
 
 extern const struct ef4_nic_type falcon_a1_nic_type;
 extern const struct ef4_nic_type falcon_b0_nic_type;

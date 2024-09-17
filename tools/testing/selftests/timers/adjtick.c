@@ -136,6 +136,7 @@ int check_tick_adj(long tickval)
 
 	eppm = get_ppm_drift();
 	printf("%lld usec, %lld ppm", systick + (systick * eppm / MILLION), eppm);
+	fflush(stdout);
 
 	tx1.modes = 0;
 	adjtimex(&tx1);
@@ -164,7 +165,7 @@ int check_tick_adj(long tickval)
 	return  0;
 }
 
-int main(int argv, char **argc)
+int main(int argc, char **argv)
 {
 	struct timespec raw;
 	long tick, max, interval, err;
@@ -204,7 +205,7 @@ int main(int argv, char **argc)
 	adjtimex(&tx1);
 
 	if (err)
-		return ksft_exit_fail();
+		ksft_exit_fail();
 
-	return ksft_exit_pass();
+	ksft_exit_pass();
 }

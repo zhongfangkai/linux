@@ -32,7 +32,7 @@ static inline void
 nv50_vmm_pgt_pte(struct nvkm_vmm *vmm, struct nvkm_mmu_pt *pt,
 		 u32 ptei, u32 ptes, struct nvkm_vmm_map *map, u64 addr)
 {
-	u64 next = addr | map->type, data;
+	u64 next = addr + map->type, data;
 	u32 pten;
 	int log2blk;
 
@@ -69,7 +69,7 @@ nv50_vmm_pgt_dma(struct nvkm_vmm *vmm, struct nvkm_mmu_pt *pt,
 		VMM_SPAM(vmm, "DMAA %08x %08x PTE(s)", ptei, ptes);
 		nvkm_kmap(pt->memory);
 		while (ptes--) {
-			const u64 data = *map->dma++ | map->type;
+			const u64 data = *map->dma++ + map->type;
 			VMM_WO064(pt, vmm, ptei++ * 8, data);
 			map->type += map->ctag;
 		}
@@ -163,28 +163,28 @@ nv50_vmm_pgd = {
 	.pde = nv50_vmm_pgd_pde,
 };
 
-static const struct nvkm_vmm_desc
+const struct nvkm_vmm_desc
 nv50_vmm_desc_12[] = {
 	{ PGT, 17, 8, 0x1000, &nv50_vmm_pgt },
 	{ PGD, 11, 0, 0x0000, &nv50_vmm_pgd },
 	{}
 };
 
-static const struct nvkm_vmm_desc
+const struct nvkm_vmm_desc
 nv50_vmm_desc_16[] = {
 	{ PGT, 13, 8, 0x1000, &nv50_vmm_pgt },
 	{ PGD, 11, 0, 0x0000, &nv50_vmm_pgd },
 	{}
 };
 
-static void
+void
 nv50_vmm_flush(struct nvkm_vmm *vmm, int level)
 {
 	struct nvkm_subdev *subdev = &vmm->mmu->subdev;
 	struct nvkm_device *device = subdev->device;
 	int i, id;
 
-	mutex_lock(&subdev->mutex);
+	mutex_lock(&vmm->mmu->mutex);
 	for (i = 0; i < NVKM_SUBDEV_NR; i++) {
 		if (!atomic_read(&vmm->engref[i]))
 			continue;
@@ -207,7 +207,7 @@ nv50_vmm_flush(struct nvkm_vmm *vmm, int level)
 		case NVKM_ENGINE_MSVLD : id = 0x09; break;
 		case NVKM_ENGINE_CIPHER:
 		case NVKM_ENGINE_SEC   : id = 0x0a; break;
-		case NVKM_ENGINE_CE0   : id = 0x0d; break;
+		case NVKM_ENGINE_CE    : id = 0x0d; break;
 		default:
 			continue;
 		}
@@ -217,13 +217,12 @@ nv50_vmm_flush(struct nvkm_vmm *vmm, int level)
 			if (!(nvkm_rd32(device, 0x100c80) & 0x00000001))
 				break;
 		) < 0)
-			nvkm_error(subdev, "%s mmu invalidate timeout\n",
-				   nvkm_subdev_name[i]);
+			nvkm_error(subdev, "%s mmu invalidate timeout\n", nvkm_subdev_type[i]);
 	}
-	mutex_unlock(&subdev->mutex);
+	mutex_unlock(&vmm->mmu->mutex);
 }
 
-static int
+int
 nv50_vmm_valid(struct nvkm_vmm *vmm, void *argv, u32 argc,
 	       struct nvkm_vmm_map *map)
 {
@@ -235,7 +234,7 @@ nv50_vmm_valid(struct nvkm_vmm *vmm, void *argv, u32 argc,
 	struct nvkm_device *device = vmm->mmu->subdev.device;
 	struct nvkm_ram *ram = device->fb->ram;
 	struct nvkm_memory *memory = map->memory;
-	u8  aper, kind, comp, priv, ro;
+	u8  aper, kind, kind_inv, comp, priv, ro;
 	int kindn, ret = -ENOSYS;
 	const u8 *kindm;
 
@@ -278,8 +277,8 @@ nv50_vmm_valid(struct nvkm_vmm *vmm, void *argv, u32 argc,
 		return -EINVAL;
 	}
 
-	kindm = vmm->mmu->func->kind(vmm->mmu, &kindn);
-	if (kind >= kindn || kindm[kind] == 0x7f) {
+	kindm = vmm->mmu->func->kind(vmm->mmu, &kindn, &kind_inv);
+	if (kind >= kindn || kindm[kind] == kind_inv) {
 		VMM_DEBUG(vmm, "kind %02x", kind);
 		return -EINVAL;
 	}
@@ -297,19 +296,22 @@ nv50_vmm_valid(struct nvkm_vmm *vmm, void *argv, u32 argc,
 			return -EINVAL;
 		}
 
-		ret = nvkm_memory_tags_get(memory, device, tags, NULL,
-					   &map->tags);
-		if (ret) {
-			VMM_DEBUG(vmm, "comp %d", ret);
-			return ret;
-		}
+		if (!map->no_comp) {
+			ret = nvkm_memory_tags_get(memory, device, tags, NULL,
+						   &map->tags);
+			if (ret) {
+				VMM_DEBUG(vmm, "comp %d", ret);
+				return ret;
+			}
 
-		if (map->tags->mn) {
-			u32 tags = map->tags->mn->offset + (map->offset >> 16);
-			map->ctag |= (u64)comp << 49;
-			map->type |= (u64)comp << 47;
-			map->type |= (u64)tags << 49;
-			map->next |= map->ctag;
+			if (map->tags->mn) {
+				u32 tags = map->tags->mn->offset +
+					   (map->offset >> 16);
+				map->ctag |= (u64)comp << 49;
+				map->type |= (u64)comp << 47;
+				map->type |= (u64)tags << 49;
+				map->next |= map->ctag;
+			}
 		}
 	}
 
@@ -321,7 +323,7 @@ nv50_vmm_valid(struct nvkm_vmm *vmm, void *argv, u32 argc,
 	return 0;
 }
 
-static void
+void
 nv50_vmm_part(struct nvkm_vmm *vmm, struct nvkm_memory *inst)
 {
 	struct nvkm_vmm_join *join;
@@ -335,7 +337,7 @@ nv50_vmm_part(struct nvkm_vmm *vmm, struct nvkm_memory *inst)
 	}
 }
 
-static int
+int
 nv50_vmm_join(struct nvkm_vmm *vmm, struct nvkm_memory *inst)
 {
 	const u32 pd_offset = vmm->mmu->func->vmm.pd_offset;
@@ -376,10 +378,10 @@ nv50_vmm = {
 };
 
 int
-nv50_vmm_new(struct nvkm_mmu *mmu, u64 addr, u64 size, void *argv, u32 argc,
-	     struct lock_class_key *key, const char *name,
+nv50_vmm_new(struct nvkm_mmu *mmu, bool managed, u64 addr, u64 size,
+	     void *argv, u32 argc, struct lock_class_key *key, const char *name,
 	     struct nvkm_vmm **pvmm)
 {
-	return nv04_vmm_new_(&nv50_vmm, mmu, 0, addr, size,
+	return nv04_vmm_new_(&nv50_vmm, mmu, 0, managed, addr, size,
 			     argv, argc, key, name, pvmm);
 }

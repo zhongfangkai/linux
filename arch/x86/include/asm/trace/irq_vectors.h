@@ -10,9 +10,6 @@
 
 #ifdef CONFIG_X86_LOCAL_APIC
 
-extern int trace_resched_ipi_reg(void);
-extern void trace_resched_ipi_unreg(void);
-
 DECLARE_EVENT_CLASS(x86_irq_vector,
 
 	TP_PROTO(int vector),
@@ -36,18 +33,6 @@ DEFINE_EVENT_FN(x86_irq_vector, name##_entry,	\
 DEFINE_EVENT_FN(x86_irq_vector, name##_exit,	\
 	TP_PROTO(int vector),			\
 	TP_ARGS(vector), NULL, NULL);
-
-#define DEFINE_RESCHED_IPI_EVENT(name)		\
-DEFINE_EVENT_FN(x86_irq_vector, name##_entry,	\
-	TP_PROTO(int vector),			\
-	TP_ARGS(vector),			\
-	trace_resched_ipi_reg,			\
-	trace_resched_ipi_unreg);		\
-DEFINE_EVENT_FN(x86_irq_vector, name##_exit,	\
-	TP_PROTO(int vector),			\
-	TP_ARGS(vector),			\
-	trace_resched_ipi_reg,			\
-	trace_resched_ipi_unreg);
 
 /*
  * local_timer - called when entering/exiting a local timer interrupt
@@ -99,7 +84,7 @@ TRACE_EVENT_PERF_PERM(irq_work_exit, is_sampling_event(p_event) ? -EPERM : 0);
 /*
  * reschedule - called when entering/exiting a reschedule vector handler
  */
-DEFINE_RESCHED_IPI_EVENT(reschedule);
+DEFINE_IRQ_VECTOR_EVENT(reschedule);
 
 /*
  * call_function - called when entering/exiting a call function interrupt
@@ -236,7 +221,7 @@ TRACE_EVENT(vector_alloc,
 	TP_PROTO(unsigned int irq, unsigned int vector, bool reserved,
 		 int ret),
 
-	TP_ARGS(irq, vector, ret, reserved),
+	TP_ARGS(irq, vector, reserved, ret),
 
 	TP_STRUCT__entry(
 		__field(	unsigned int,	irq		)
@@ -283,34 +268,34 @@ TRACE_EVENT(vector_alloc_managed,
 DECLARE_EVENT_CLASS(vector_activate,
 
 	TP_PROTO(unsigned int irq, bool is_managed, bool can_reserve,
-		 bool early),
+		 bool reserve),
 
-	TP_ARGS(irq, is_managed, can_reserve, early),
+	TP_ARGS(irq, is_managed, can_reserve, reserve),
 
 	TP_STRUCT__entry(
 		__field(	unsigned int,	irq		)
 		__field(	bool,		is_managed	)
 		__field(	bool,		can_reserve	)
-		__field(	bool,		early		)
+		__field(	bool,		reserve		)
 	),
 
 	TP_fast_assign(
 		__entry->irq		= irq;
 		__entry->is_managed	= is_managed;
 		__entry->can_reserve	= can_reserve;
-		__entry->early		= early;
+		__entry->reserve	= reserve;
 	),
 
-	TP_printk("irq=%u is_managed=%d can_reserve=%d early=%d",
+	TP_printk("irq=%u is_managed=%d can_reserve=%d reserve=%d",
 		  __entry->irq, __entry->is_managed, __entry->can_reserve,
-		  __entry->early)
+		  __entry->reserve)
 );
 
 #define DEFINE_IRQ_VECTOR_ACTIVATE_EVENT(name)				\
 DEFINE_EVENT_FN(vector_activate, name,					\
 	TP_PROTO(unsigned int irq, bool is_managed,			\
-		 bool can_reserve, bool early),				\
-	TP_ARGS(irq, is_managed, can_reserve, early), NULL, NULL);	\
+		 bool can_reserve, bool reserve),			\
+	TP_ARGS(irq, is_managed, can_reserve, reserve), NULL, NULL);	\
 
 DEFINE_IRQ_VECTOR_ACTIVATE_EVENT(vector_activate);
 DEFINE_IRQ_VECTOR_ACTIVATE_EVENT(vector_deactivate);
@@ -389,6 +374,7 @@ TRACE_EVENT(vector_free_moved,
 #endif /* CONFIG_X86_LOCAL_APIC */
 
 #undef TRACE_INCLUDE_PATH
+#undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_PATH .
 #define TRACE_INCLUDE_FILE irq_vectors
 #endif /*  _TRACE_IRQ_VECTORS_H */

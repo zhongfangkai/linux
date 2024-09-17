@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  HID driver for various devices which are apparently based on the same chipset
  *  from certain vendor which produces chips that contain wrong LogicalMaximum
@@ -13,10 +14,6 @@
  */
 
 /*
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
  */
 
 #include <linux/device.h>
@@ -54,4 +51,5 @@ static struct hid_driver ortek_driver = {
 };
 module_hid_driver(ortek_driver);
 
+MODULE_DESCRIPTION("HID driver for Ortek PKB-1700/WKB-2000/Skycable wireless keyboard and mouse trackpad");
 MODULE_LICENSE("GPL");

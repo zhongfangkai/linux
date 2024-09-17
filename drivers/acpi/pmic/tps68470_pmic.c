@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * TI TPS68470 PMIC operation region driver
  *
@@ -5,21 +6,12 @@
  *
  * Author: Rajmohan Mani <rajmohan.mani@intel.com>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License version
- * 2 as published by the Free Software Foundation.
- *
- * This program is distributed "as is" WITHOUT ANY WARRANTY of any
- * kind, whether express or implied; without even the implied warranty
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  * Based on drivers/acpi/pmic/intel_pmic* drivers
  */
 
 #include <linux/acpi.h>
-#include <linux/mfd/tps68470.h>
 #include <linux/init.h>
+#include <linux/mfd/tps68470.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
@@ -384,10 +376,8 @@ static int tps68470_pmic_opregion_probe(struct platform_device *pdev)
 	struct tps68470_pmic_opregion *opregion;
 	acpi_status status;
 
-	if (!dev || !tps68470_regmap) {
-		dev_warn(dev, "dev or regmap is NULL\n");
-		return -EINVAL;
-	}
+	if (!tps68470_regmap)
+		return dev_err_probe(dev, -EINVAL, "regmap is missing\n");
 
 	if (!handle) {
 		dev_warn(dev, "acpi handle is NULL\n");

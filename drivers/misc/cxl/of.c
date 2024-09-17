@@ -1,10 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright 2015 IBM Corp.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 
 #include <linux/kernel.h>
@@ -302,7 +298,7 @@ static int read_adapter_irq_config(struct cxl *adapter, struct device_node *np)
 	if (nranges == 0 || (nranges * 2 * sizeof(int)) != len)
 		return -EINVAL;
 
-	adapter->guest->irq_avail = kzalloc(nranges * sizeof(struct irq_avail),
+	adapter->guest->irq_avail = kcalloc(nranges, sizeof(struct irq_avail),
 					    GFP_KERNEL);
 	if (adapter->guest->irq_avail == NULL)
 		return -ENOMEM;
@@ -312,8 +308,7 @@ static int read_adapter_irq_config(struct cxl *adapter, struct device_node *np)
 		cur = &adapter->guest->irq_avail[i];
 		cur->offset = be32_to_cpu(ranges[i * 2]);
 		cur->range  = be32_to_cpu(ranges[i * 2 + 1]);
-		cur->bitmap = kcalloc(BITS_TO_LONGS(cur->range),
-				sizeof(*cur->bitmap), GFP_KERNEL);
+		cur->bitmap = bitmap_zalloc(cur->range, GFP_KERNEL);
 		if (cur->bitmap == NULL)
 			goto err;
 		if (cur->offset < adapter->guest->irq_base_offset)
@@ -330,7 +325,7 @@ static int read_adapter_irq_config(struct cxl *adapter, struct device_node *np)
 err:
 	for (i--; i >= 0; i--) {
 		cur = &adapter->guest->irq_avail[i];
-		kfree(cur->bitmap);
+		bitmap_free(cur->bitmap);
 	}
 	kfree(adapter->guest->irq_avail);
 	adapter->guest->irq_avail = NULL;
@@ -436,7 +431,7 @@ int cxl_of_read_adapter_properties(struct cxl *adapter, struct device_node *np)
 	return 0;
 }
 
-static int cxl_of_remove(struct platform_device *pdev)
+static void cxl_of_remove(struct platform_device *pdev)
 {
 	struct cxl *adapter;
 	int afu;
@@ -446,7 +441,6 @@ static int cxl_of_remove(struct platform_device *pdev)
 		cxl_guest_remove_afu(adapter->afu[afu]);
 
 	cxl_guest_remove_adapter(adapter);
-	return 0;
 }
 
 static void cxl_of_shutdown(struct platform_device *pdev)
@@ -506,6 +500,6 @@ struct platform_driver cxl_of_driver = {
 		.owner = THIS_MODULE
 	},
 	.probe = cxl_of_probe,
-	.remove = cxl_of_remove,
+	.remove_new = cxl_of_remove,
 	.shutdown = cxl_of_shutdown,
 };

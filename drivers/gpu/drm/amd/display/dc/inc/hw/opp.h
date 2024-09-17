@@ -23,12 +23,29 @@
  *
  */
 
+/**
+ * DOC: overview
+ *
+ * The Output Plane Processor (OPP) block groups have functions that format
+ * pixel streams such that they are suitable for display at the display device.
+ * The key functions contained in the OPP are:
+ *
+ * - Adaptive Backlight Modulation (ABM)
+ * - Formatter (FMT) which provide pixel-by-pixel operations for format the
+ *   incoming pixel stream.
+ * - Output Buffer that provide pixel replication, and overlapping.
+ * - Interface between MPC and OPTC.
+ * - Clock and reset generation.
+ * - CRC generation.
+ */
+
 #ifndef __DAL_OPP_H__
 #define __DAL_OPP_H__
 
 #include "hw_shared.h"
 #include "dc_hw_types.h"
 #include "transform.h"
+#include "mpc.h"
 
 struct fixed31_32;
 
@@ -188,9 +205,24 @@ struct gamma_coefficients {
 	struct fixed31_32 user_brightness;
 };
 
+/**
+ * struct pwl_float_data - Fixed point RGB color
+ */
 struct pwl_float_data {
+	/**
+	 * @r: Component Red.
+	 */
 	struct fixed31_32 r;
+
+	/**
+	 * @g: Component Green.
+	 */
+
 	struct fixed31_32 g;
+
+	/**
+	 * @b: Component Blue.
+	 */
 	struct fixed31_32 b;
 };
 
@@ -204,9 +236,10 @@ struct output_pixel_processor {
 	struct dc_context *ctx;
 	uint32_t inst;
 	struct pwl_params regamma_params;
-	struct mpc_tree_cfg mpc_tree;
+	struct mpc_tree mpc_tree_params;
 	bool mpcc_disconnect_pending[MAX_PIPES];
 	const struct opp_funcs *funcs;
+	uint32_t dyn_expansion;
 };
 
 enum fmt_stereo_action {
@@ -248,6 +281,22 @@ enum ovl_csc_adjust_item {
 	OVERLAY_COLOR_TEMPERATURE
 };
 
+enum oppbuf_display_segmentation {
+	OPPBUF_DISPLAY_SEGMENTATION_1_SEGMENT = 0,
+	OPPBUF_DISPLAY_SEGMENTATION_2_SEGMENT = 1,
+	OPPBUF_DISPLAY_SEGMENTATION_4_SEGMENT = 2,
+	OPPBUF_DISPLAY_SEGMENTATION_4_SEGMENT_SPLIT_LEFT = 3,
+	OPPBUF_DISPLAY_SEGMENTATION_4_SEGMENT_SPLIT_RIGHT = 4
+};
+
+struct oppbuf_params {
+	uint32_t active_width;
+	enum oppbuf_display_segmentation mso_segmentation;
+	uint32_t mso_overlap_pixel_num;
+	uint32_t pixel_repetition;
+	uint32_t num_segment_padded_pixels;
+};
+
 struct opp_funcs {
 
 
@@ -276,14 +325,49 @@ struct opp_funcs {
 
 	void (*opp_destroy)(struct output_pixel_processor **opp);
 
-	void (*opp_set_stereo_polarity)(
-			struct output_pixel_processor *opp,
-			bool enable,
-			bool rightEyePolarity);
+	void (*opp_program_stereo)(
+		struct output_pixel_processor *opp,
+		bool enable,
+		const struct dc_crtc_timing *timing);
 
-	void (*opp_set_test_pattern)(
+	void (*opp_pipe_clock_control)(
 			struct output_pixel_processor *opp,
 			bool enable);
+
+	void (*opp_set_disp_pattern_generator)(
+			struct output_pixel_processor *opp,
+			enum controller_dp_test_pattern test_pattern,
+			enum controller_dp_color_space color_space,
+			enum dc_color_depth color_depth,
+			const struct tg_color *solid_color,
+			int width,
+			int height,
+			int offset);
+
+	void (*opp_program_dpg_dimensions)(
+				struct output_pixel_processor *opp,
+				int width,
+				int height);
+
+	bool (*dpg_is_blanked)(
+			struct output_pixel_processor *opp);
+
+	bool (*dpg_is_pending)(struct output_pixel_processor *opp);
+
+
+	void (*opp_dpg_set_blank_color)(
+			struct output_pixel_processor *opp,
+			const struct tg_color *color);
+
+	void (*opp_program_left_edge_extra_pixel)(
+			struct output_pixel_processor *opp,
+			enum dc_pixel_encoding pixel_encoding,
+			bool is_primary);
+
+	uint32_t (*opp_get_left_edge_extra_pixel_count)(
+			struct output_pixel_processor *opp,
+			enum dc_pixel_encoding pixel_encoding,
+			bool is_primary);
 };
 
 #endif

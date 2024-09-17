@@ -1,17 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * gpio-reg: single register individually fixed-direction GPIOs
  *
  * Copyright (C) 2016 Russell King
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
  */
-#include <linux/gpio/driver.h>
-#include <linux/gpio/gpio-reg.h>
+#include <linux/bits.h>
+#include <linux/container_of.h>
+#include <linux/device.h>
+#include <linux/err.h>
+#include <linux/errno.h>
 #include <linux/io.h>
+#include <linux/irqdomain.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/types.h>
+
+#include <linux/gpio/driver.h>
+#include <linux/gpio/gpio-reg.h>
 
 struct gpio_reg {
 	struct gpio_chip gc;
@@ -29,7 +34,8 @@ static int gpio_reg_get_direction(struct gpio_chip *gc, unsigned offset)
 {
 	struct gpio_reg *r = to_gpio_reg(gc);
 
-	return r->direction & BIT(offset) ? 1 : 0;
+	return r->direction & BIT(offset) ? GPIO_LINE_DIRECTION_IN :
+					    GPIO_LINE_DIRECTION_OUT;
 }
 
 static int gpio_reg_direction_output(struct gpio_chip *gc, unsigned offset,
@@ -103,8 +109,8 @@ static int gpio_reg_to_irq(struct gpio_chip *gc, unsigned offset)
 	struct gpio_reg *r = to_gpio_reg(gc);
 	int irq = r->irqs[offset];
 
-	if (irq >= 0 && r->irq.domain)
-		irq = irq_find_mapping(r->irq.domain, irq);
+	if (irq >= 0 && r->irqdomain)
+		irq = irq_find_mapping(r->irqdomain, irq);
 
 	return irq;
 }
